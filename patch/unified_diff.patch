@@ -1,0 +1,171 @@
+--- /dev/null
++++ /usr/share/lipstick-jolla-home-qt5/switcher/SwipeItem.qml
+@@ -0,0 +1,155 @@
++import QtQuick 2.0
++import Sailfish.Silica 1.0
++import org.nemomobile.ngf 1.0
++
++Item {
++    width: parent.width
++    height: parent.height
++    clip: true
++    enabled: !wrapper.hideCover && !wrapper.editMode && coverActionModel.count
++
++    property Item targetItem // dragged pixmap
++
++    NonGraphicalFeedback {
++        id: ngfEvent
++        event: "pulldown_highlight"
++    }
++
++    Component.onCompleted: {
++        //For trivial upgrades
++        targetItem.parent = dragItem
++//        targetItem.opacity = Qt.binding( function() {
++//            return (wrapper.coverOpacity === 1) ? dragArea.coverOpacity : wrapper.coverOpacity
++//        })
++        targetItem.opacity = Qt.binding( function() {
++            return dragArea.coverOpacity
++        })
++        coverOpacityAnimation.duration = 0 // FIXME
++
++    }
++
++    Item {
++        id: dragItem
++
++        width: parent.width
++        height: parent.height
++
++        Behavior on x {
++            id: dragItemXBehavior
++            enabled: false
++            NumberAnimation {
++                to: 0
++                duration: 150
++            }
++        }
++
++        MouseArea {
++            id: dragArea
++            anchors.fill: parent
++            propagateComposedEvents: true
++
++            property double dragFactor: dragItem.x == 0 ? 0 : Math.abs(dragItem.x) / drag.maximumX
++            property bool dragAtMaximum: dragItem.x >= (drag.maximumX - 1) || dragItem.x <= (drag.minimumX + 1)
++            property bool dragItemMoving: dragItem.x > 0 || dragItem.x < 0
++            property real coverOpacity:  1.0 - (dragFactor * 2)
++            property bool dragRight: dragItem.x > 0
++
++            signal triggerAction(int i)
++
++            onDragAtMaximumChanged: {
++                if (dragAtMaximum && drag.active)
++                    ngfEvent.play()
++            }
++
++            onClicked: {
++                mouse.accepted = false
++            }
++
++            onPressAndHold: {
++                mouse.accepted = false
++            }
++
++            drag {
++                axis: Drag.XAxis
++                target: dragItem
++                maximumX:  width * 0.4
++                minimumX: -drag.maximumX
++
++                onActiveChanged: {
++                    dragItemXBehavior.enabled = !drag.active
++                    if (!drag.active) {
++                        if (dragAtMaximum) {
++                            if (dragArea.dragRight) {
++                                console.log("trigger action left")
++                                dragArea.triggerAction(0)
++                            } else {
++                                console.log("trigger action right")
++                                dragArea.triggerAction(1)
++                            }
++                        }
++                        dragItem.x = 0
++                    }
++                }
++            }
++        }
++    }
++
++    Rectangle { // background that is shown when the cover is dragged
++        opacity: {
++           if (dragArea.dragAtMaximum) {
++               return 0.7
++           } else {
++               if (Math.abs(dragItem.x) < Theme.paddingSmall) {
++                   return Theme.highlightBackgroundOpacity
++               } else {
++                   return 0.2 * dragArea.dragFactor + Theme.highlightBackgroundOpacity
++               }
++           }
++        }
++        color: dragArea.pressed ? Theme.highlightBackgroundColor : "transparent"
++        anchors.fill: parent
++    }
++
++    Repeater {
++        model: coverActionModel
++
++        delegate: Image { // Icon representing the action that becomes visible when cover is dragged
++
++            property double dragFactor: (dragArea.width / 2 + width / 2) / dragArea.drag.maximumX
++            property string icon: {
++                var name = model.iconSource.toString()
++                return "/usr/share/themes/sailfish-default/meegotouch/z2.0/icons/" + name.split("/").pop() + ".png"
++            }
++            //zypper in sailfish-content-graphics-default-z2.0
++
++            x: (coverActionModel.count === 2)
++               ? ((index === 0) ? dragItem.x * dragFactor - width : dragArea.width + dragItem.x * dragFactor)
++               : ((dragItem.x > 0) ? dragItem.x * dragFactor - width : dragArea.width + dragItem.x * dragFactor)
++            y: dragArea.height / 3 - height / 2
++            visible: dragArea.dragItemMoving
++            source: icon
++            opacity: dragArea.dragAtMaximum ? 1.0 : 0.5 * dragArea.dragFactor
++            smooth: true
++            asynchronous: true
++
++            Connections {
++                target: dragArea
++                onTriggerAction: {
++                    if (coverActionModel.count === 2) {
++                        if (index == i) {
++                            coverActionModel.trigger(model.id)
++                        }
++                    } else {
++                        coverActionModel.trigger(model.id)
++                    }
++
++                }
++            }
++        }
++    }
++}
++
++
++
++
++
+--- /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
++++ /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
+@@ -191,6 +191,10 @@ EditableGridDelegate {
+         }
+     }
+ 
++    SwipeItem {
++	targetItem: windowPixmap
++    }
++
+     LauncherIcon {
+         size: Theme.iconSizeMedium
+         anchors.centerIn: parent

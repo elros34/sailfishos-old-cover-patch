@@ -1,0 +1,9 @@
+{
+    "name": "Old cover patch",
+    "description": "Returns gesture based covers from Sailfish 1.1",
+    "category": "homescreen",
+    "infos": {
+        "maintainer": "elros34"
+    }
+}
+
