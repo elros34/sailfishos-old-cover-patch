@@ -50,6 +50,7 @@
 +            id: dragArea
 +            anchors.fill: parent
 +            propagateComposedEvents: true
++            preventStealing: true
 +
 +            property double dragFactor: dragItem.x == 0 ? 0 : Math.abs(dragItem.x) / drag.maximumX
 +            property bool dragAtMaximum: dragItem.x >= (drag.maximumX - 1) || dragItem.x <= (drag.minimumX + 1)
