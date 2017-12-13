@@ -9,7 +9,7 @@ Group:      Qt/Qt
 License:    TODO
 Source0:    %{name}-%{version}.tar.bz2
 Requires:   patchmanager
-Requires:	sailfish-content-graphics-default-z2.0, lipstick-jolla-home-qt5 = 0.34.26.9-10.129.2.jolla
+Requires:   sailfish-content-graphics-default-z2.0, lipstick-jolla-home-qt5
 
 %description
 Patch adds gesture based covers from Sailfish 1.1
