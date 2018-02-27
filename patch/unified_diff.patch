@@ -12,6 +12,7 @@
 +    enabled: !wrapper.hideCover && !wrapper.editMode && coverActionModel.count
 +
 +    property Item targetItem // dragged pixmap
++    property Item wrapper
 +
 +    NonGraphicalFeedback {
 +        id: ngfEvent
@@ -49,7 +50,7 @@
 +        MouseArea {
 +            id: dragArea
 +            anchors.fill: parent
-+            propagateComposedEvents: true
++            propagateComposedEvents: false // true cause random drag event stealing by lipstick homescreen
 +            preventStealing: true
 +
 +            property double dragFactor: dragItem.x == 0 ? 0 : Math.abs(dragItem.x) / drag.maximumX
@@ -65,8 +66,17 @@
 +                    ngfEvent.play()
 +            }
 +
++            onPressed: {
++                 //enable it for a while so pressAndHold event will be propagated
++	         propagateComposedEvents = true
++            }
++
++	    onReleased: {
++	         propagateComposedEvents = false
++            }
++
 +            onClicked: {
-+                mouse.accepted = false
++                wrapper.clicked()
 +            }
 +
 +            onPressAndHold: {
@@ -165,6 +175,7 @@
  
 +    SwipeItem {
 +	targetItem: windowPixmap
++        wrapper: wrapper
 +    }
 +
      LauncherIcon {
