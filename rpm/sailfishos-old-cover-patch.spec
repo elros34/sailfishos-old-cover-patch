@@ -3,7 +3,7 @@ Name:       sailfishos-old-cover-patch
 BuildArch: noarch
 
 Summary:    Old cover patch
-Version:    0.0.1
+Version:    0.0.2
 Release:    1
 Group:      Qt/Qt
 License:    TODO
