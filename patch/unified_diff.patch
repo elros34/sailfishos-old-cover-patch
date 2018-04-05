@@ -66,21 +66,12 @@
 +                    ngfEvent.play()
 +            }
 +
-+            onPressed: {
-+                 //enable it for a while so pressAndHold event will be propagated
-+	         propagateComposedEvents = true
-+            }
-+
-+	    onReleased: {
-+	         propagateComposedEvents = false
-+            }
-+
 +            onClicked: {
 +                wrapper.clicked()
 +            }
 +
 +            onPressAndHold: {
-+                mouse.accepted = false
++                wrapper.pressAndHold()
 +            }
 +
 +            drag {
@@ -169,7 +160,7 @@
 +
 --- /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
 +++ /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
-@@ -191,6 +191,10 @@ EditableGridDelegate {
+@@ -191,6 +191,11 @@ EditableGridDelegate {
          }
      }
  
