@@ -3,13 +3,14 @@ Name:       sailfishos-old-cover-patch
 BuildArch: noarch
 
 Summary:    Old cover patch
-Version:    0.0.2
+Version:    0.0.3
 Release:    1
 Group:      Qt/Qt
 License:    TODO
 Source0:    %{name}-%{version}.tar.bz2
+Requires:   sailfish-version >= 2.2.0
 Requires:   patchmanager
-Requires:   sailfish-content-graphics-default-z2.0, lipstick-jolla-home-qt5
+Requires:   sailfish-content-graphics-default-z2.0
 
 %description
 Patch adds gesture based covers from Sailfish 1.1

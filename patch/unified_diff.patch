@@ -1,15 +1,55 @@
 --- /dev/null
++++ /usr/share/lipstick-jolla-home-qt5/switcher/HorizontalSwipeEater.qml
+@@ -0,0 +1,37 @@
++import QtQuick 2.0
++
++Item {
++    id: horizontalSwipeEater
++    anchors.left: parent.left // ignore dragging
++
++    property alias mouseArea: mouseArea
++    signal pressed(var mouse)
++    signal released(var mouse)
++
++    MouseArea {
++        id: mouseArea
++        anchors.fill: parent
++        propagateComposedEvents: true
++        drag {
++            target: horizontalSwipeEater
++            axis: Drag.XAxis
++        }
++
++        onPressed: {
++            horizontalSwipeEater.pressed(mouse)
++        }
++
++        onReleased: {
++            horizontalSwipeEater.released(mouse)
++        }
++
++        onClicked: {
++            mouse.accepted = false
++        }
++        onPressAndHold: {
++            mouse.accepted = false
++        }
++    }
++}
++
++
+--- /dev/null
 +++ /usr/share/lipstick-jolla-home-qt5/switcher/SwipeItem.qml
-@@ -0,0 +1,155 @@
+@@ -0,0 +1,162 @@
 +import QtQuick 2.0
 +import Sailfish.Silica 1.0
-+import org.nemomobile.ngf 1.0
++import Nemo.Ngf 1.0
 +
 +Item {
 +    width: parent.width
 +    height: parent.height
 +    clip: true
-+    enabled: !wrapper.hideCover && !wrapper.editMode && coverActionModel.count
++    enabled: !wrapper.hideCover && !wrapper.editMode
 +
 +    property Item targetItem // dragged pixmap
 +    property Item wrapper
@@ -32,9 +72,16 @@
 +
 +    }
 +
++    HorizontalSwipeEater {
++        id: horizontalSwipeEater
++        width: parent.width
++        height: parent.height
++        enabled: !coverActionModel.count
++    }
++
 +    Item {
 +        id: dragItem
-+
++        enabled: coverActionModel.count
 +        width: parent.width
 +        height: parent.height
 +
@@ -50,8 +97,7 @@
 +        MouseArea {
 +            id: dragArea
 +            anchors.fill: parent
-+            propagateComposedEvents: false // true cause random drag event stealing by lipstick homescreen
-+            preventStealing: true
++            propagateComposedEvents: true
 +
 +            property double dragFactor: dragItem.x == 0 ? 0 : Math.abs(dragItem.x) / drag.maximumX
 +            property bool dragAtMaximum: dragItem.x >= (drag.maximumX - 1) || dragItem.x <= (drag.minimumX + 1)
@@ -67,11 +113,11 @@
 +            }
 +
 +            onClicked: {
-+                wrapper.clicked()
++                mouse.accepted = false
 +            }
 +
 +            onPressAndHold: {
-+                wrapper.pressAndHold()
++                mouse.accepted = false
 +            }
 +
 +            drag {
@@ -111,7 +157,8 @@
 +               }
 +           }
 +        }
-+        color: dragArea.pressed ? Theme.highlightBackgroundColor : "transparent"
++        color: (dragArea.pressed || horizontalSwipeEater.mouseArea.pressed) ?
++                Theme.highlightBackgroundColor : "transparent"
 +        anchors.fill: parent
 +    }
 +
@@ -156,8 +203,40 @@
 +
 +
 +
+--- /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
++++ /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
+@@ -48,6 +48,7 @@ SilicaFlickable {
+ 
+     contentHeight: Math.ceil(switcherWrapper.y + switcherWrapper.height)
+ 
++    pressDelay: 0 // somehow prevents random swipe stealing when interactive is enabled
+     interactive: contentHeight > height || closeApplicationEnabled
+ 
+     onCloseApplicationEnabledChanged: {
+@@ -343,6 +344,23 @@ SilicaFlickable {
+ 
+         onWidthChanged: switcherGrid.updateColumns()
+ 
++        HorizontalSwipeEater {
++            width: parent.width - Theme.paddingLarge * 2
++            height: parent.height
++            anchors {
++                left: undefined
++                horizontalCenter: parent.horizontalCenter
++            }
 +
++            onPressed: {
++                switcherWrapper.onPressed(mouse)
++            }
 +
++            onReleased: {
++                switcherWrapper.onReleased(mouse)
++            }
++        }
++
+         Grid {
+             id: switcherGrid
+             x: margin
 --- /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
 +++ /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
 @@ -191,6 +191,11 @@ EditableGridDelegate {
@@ -165,7 +244,7 @@
      }
  
 +    SwipeItem {
-+	targetItem: windowPixmap
++        targetItem: windowPixmap
 +        wrapper: wrapper
 +    }
 +
