@@ -1,51 +1,12 @@
 --- /dev/null
-+++ /usr/share/lipstick-jolla-home-qt5/switcher/HorizontalSwipeEater.qml
-@@ -0,0 +1,37 @@
-+import QtQuick 2.0
-+
-+Item {
-+    id: horizontalSwipeEater
-+    anchors.left: parent.left // ignore dragging
-+
-+    property alias mouseArea: mouseArea
-+    signal pressed(var mouse)
-+    signal released(var mouse)
-+
-+    MouseArea {
-+        id: mouseArea
-+        anchors.fill: parent
-+        propagateComposedEvents: true
-+        drag {
-+            target: horizontalSwipeEater
-+            axis: Drag.XAxis
-+        }
-+
-+        onPressed: {
-+            horizontalSwipeEater.pressed(mouse)
-+        }
-+
-+        onReleased: {
-+            horizontalSwipeEater.released(mouse)
-+        }
-+
-+        onClicked: {
-+            mouse.accepted = false
-+        }
-+        onPressAndHold: {
-+            mouse.accepted = false
-+        }
-+    }
-+}
-+
-+
---- /dev/null
 +++ /usr/share/lipstick-jolla-home-qt5/switcher/SwipeItem.qml
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,244 @@
 +import QtQuick 2.0
 +import Sailfish.Silica 1.0
 +import Nemo.Ngf 1.0
 +
 +Item {
++    id: swipeItem
 +    width: parent.width
 +    height: parent.height
 +    clip: true
@@ -53,18 +14,21 @@
 +
 +    property Item targetItem // dragged pixmap
 +    property Item wrapper
++    property bool closeMode: false
 +
 +    NonGraphicalFeedback {
-+        id: ngfEvent
++        id: ngfPullEvent
 +        event: "pulldown_highlight"
++    }
++
++    NonGraphicalFeedback {
++        id: ngfCloseEvent
++        event: "close_app"
 +    }
 +
 +    Component.onCompleted: {
 +        //For trivial upgrades
 +        targetItem.parent = dragItem
-+//        targetItem.opacity = Qt.binding( function() {
-+//            return (wrapper.coverOpacity === 1) ? dragArea.coverOpacity : wrapper.coverOpacity
-+//        })
 +        targetItem.opacity = Qt.binding( function() {
 +            return dragArea.coverOpacity
 +        })
@@ -72,16 +36,15 @@
 +
 +    }
 +
-+    HorizontalSwipeEater {
-+        id: horizontalSwipeEater
-+        width: parent.width
-+        height: parent.height
-+        enabled: !coverActionModel.count
++    Connections {
++        target: wrapper
++        onEditModeChanged: {
++            closeMode = false
++        }
 +    }
 +
 +    Item {
 +        id: dragItem
-+        enabled: coverActionModel.count
 +        width: parent.width
 +        height: parent.height
 +
@@ -99,37 +62,98 @@
 +            anchors.fill: parent
 +            propagateComposedEvents: true
 +
-+            property double dragFactor: dragItem.x == 0 ? 0 : Math.abs(dragItem.x) / drag.maximumX
-+            property bool dragAtMaximum: dragItem.x >= (drag.maximumX - 1) || dragItem.x <= (drag.minimumX + 1)
-+            property bool dragItemMoving: dragItem.x > 0 || dragItem.x < 0
-+            property real coverOpacity:  1.0 - (dragFactor * 2)
++            property double dragXFactor: dragItem.x == 0 ? 0 : Math.abs(dragItem.x) / drag.maximumX
++            property bool dragXAtMaximum: (drag.maximumX == 0) ? false : (dragItem.x >= (drag.maximumX - 1) || dragItem.x <= (drag.minimumX + 1))
++            property bool dragXItemMoving: dragItem.x > 0 || dragItem.x < 0
++            property real coverOpacity:  1.0 - (closeMode ? dragYFactor * 2 : dragXFactor * 2)
 +            property bool dragRight: dragItem.x > 0
++
++            property bool dragYAtMaximum: dragItem.y >= (drag.maximumY - 1) || dragItem.y <= (drag.minimumY + 1)
++            property double dragYFactor: dragItem.y == 0 ? 0 : Math.abs(dragItem.y) / drag.maximumY
++            property bool dragYItemMoving: dragItem.y > 0 || dragItem.y < 0
++
++            property int initX: 0
++            property int initY: 0
++            property bool pendingEditMode: false
 +
 +            signal triggerAction(int i)
 +
-+            onDragAtMaximumChanged: {
-+                if (dragAtMaximum && drag.active)
-+                    ngfEvent.play()
++            onDragXAtMaximumChanged: {
++                if (dragXAtMaximum && drag.active)
++                    ngfPullEvent.play()
++            }
++
++            onDragYAtMaximumChanged: {
++                if (dragYAtMaximum && drag.active)
++                    ngfCloseEvent.play()
 +            }
 +
 +            onClicked: {
 +                mouse.accepted = false
++                closeMode = false
++            }
++
++            onPressed: {
++                holdTimer.start()
++                closeMode = false
++                initX = mouse.x
++                initY = mouse.y
++            }
++
++            onReleased:{
++                holdTimer.stop()
++                if (pendingEditMode) {
++                    pendingEditMode = false
++                    wrapper.pressAndHold()
++                }
 +            }
 +
 +            onPressAndHold: {
-+                mouse.accepted = false
++                mouse.accepted = true
++            }
++
++            Timer {
++                id: holdTimer
++                interval: 500
++                onTriggered: {
++                    if ((Math.abs(dragArea.mouseX - dragArea.initX) < Theme.startDragDistance) &&
++                        (Math.abs(dragArea.mouseY - dragArea.initY) < Theme.startDragDistance)) {
++                        closeMode = true
++                        dragArea.pendingEditMode = true
++                    }
++                }
++            }
++
++            SequentialAnimation {
++                id: dragYAnim
++                PropertyAnimation {
++                    target: dragItem
++                    property: "y"
++                    to: 0
++                    duration: 150
++                }
++                ScriptAction {
++                    script: {
++                        closeMode = false
++                    }
++                }
 +            }
 +
 +            drag {
-+                axis: Drag.XAxis
++                axis: closeMode ? Drag.YAxis : Drag.XAxis
 +                target: dragItem
-+                maximumX:  width * 0.4
++                maximumX: coverActionModel.count ? (width * 0.4) : 0
 +                minimumX: -drag.maximumX
++                maximumY: height * 0.4
++                minimumY: -drag.maximumY
 +
 +                onActiveChanged: {
-+                    dragItemXBehavior.enabled = !drag.active
++                    holdTimer.stop()
++                    dragItemXBehavior.enabled = !drag.active && (drag.axis == Drag.XAxis)
++                    dragArea.pendingEditMode = false
++
 +                    if (!drag.active) {
-+                        if (dragAtMaximum) {
++                        if (dragXAtMaximum) {
 +                            if (dragArea.dragRight) {
 +                                console.log("trigger action left")
 +                                dragArea.triggerAction(0)
@@ -137,8 +161,13 @@
 +                                console.log("trigger action right")
 +                                dragArea.triggerAction(1)
 +                            }
++                        } else if (dragYAtMaximum) {
++                            dragYAnim.start()
++                            wrapper.close()
++                            return
 +                        }
 +                        dragItem.x = 0
++                        dragYAnim.start()
 +                    }
 +                }
 +            }
@@ -147,19 +176,32 @@
 +
 +    Rectangle { // background that is shown when the cover is dragged
 +        opacity: {
-+           if (dragArea.dragAtMaximum) {
++           if (dragArea.dragXAtMaximum || dragArea.dragYAtMaximum) {
 +               return 0.7
 +           } else {
-+               if (Math.abs(dragItem.x) < Theme.paddingSmall) {
++               if ((Math.abs(dragItem.x) < Theme.paddingSmall) &&
++                   (Math.abs(dragItem.y) < Theme.paddingSmall)) {
 +                   return Theme.highlightBackgroundOpacity
 +               } else {
-+                   return 0.2 * dragArea.dragFactor + Theme.highlightBackgroundOpacity
++                   return 0.2 * (closeMode ? dragArea.dragYFactor : dragArea.dragXFactor) + Theme.highlightBackgroundOpacity
 +               }
 +           }
 +        }
-+        color: (dragArea.pressed || horizontalSwipeEater.mouseArea.pressed) ?
++        color: (dragArea.pressed) ?
 +                Theme.highlightBackgroundColor : "transparent"
 +        anchors.fill: parent
++    }
++
++    Image { // Close draggable action icon
++        id: closingGraphic
++        visible: dragArea.dragYItemMoving
++        source: "image://theme/graphic-close-app"
++        scale: wrapper.width / Theme.coverSizeLarge.width
++        asynchronous: true
++        x: dragArea.width / 2 - width / 2
++        y: (dragItem.y > 0) ? dragItem.y * yFactor - height : dragArea.height + dragItem.y * yFactor
++        opacity: dragArea.dragYAtMaximum ? 1.0 : 0.5 * dragArea.dragYFactor
++        property double yFactor: (dragArea.height / 2 + height / 2) / dragArea.drag.maximumY
 +    }
 +
 +    Repeater {
@@ -167,7 +209,7 @@
 +
 +        delegate: Image { // Icon representing the action that becomes visible when cover is dragged
 +
-+            property double dragFactor: (dragArea.width / 2 + width / 2) / dragArea.drag.maximumX
++            property double xFactor: (dragArea.width / 2 + width / 2) / dragArea.drag.maximumX
 +            property string icon: {
 +                var name = model.iconSource.toString()
 +                return "/usr/share/themes/sailfish-default/meegotouch/z2.0/icons/" + name.split("/").pop() + ".png"
@@ -175,12 +217,12 @@
 +            //zypper in sailfish-content-graphics-default-z2.0
 +
 +            x: (coverActionModel.count === 2)
-+               ? ((index === 0) ? dragItem.x * dragFactor - width : dragArea.width + dragItem.x * dragFactor)
-+               : ((dragItem.x > 0) ? dragItem.x * dragFactor - width : dragArea.width + dragItem.x * dragFactor)
++               ? ((index === 0) ? dragItem.x * xFactor - width : dragArea.width + dragItem.x * xFactor)
++               : ((dragItem.x > 0) ? dragItem.x * xFactor - width : dragArea.width + dragItem.x * xFactor)
 +            y: dragArea.height / 3 - height / 2
-+            visible: dragArea.dragItemMoving
++            visible: dragArea.dragXItemMoving
 +            source: icon
-+            opacity: dragArea.dragAtMaximum ? 1.0 : 0.5 * dragArea.dragFactor
++            opacity: dragArea.dragXAtMaximum ? 1.0 : 0.5 * dragArea.dragXFactor
 +            smooth: true
 +            asynchronous: true
 +
@@ -213,37 +255,14 @@
      interactive: contentHeight > height || closeApplicationEnabled
  
      onCloseApplicationEnabledChanged: {
-@@ -343,6 +344,23 @@ SilicaFlickable {
- 
-         onWidthChanged: switcherGrid.updateColumns()
- 
-+        HorizontalSwipeEater {
-+            width: parent.width - Theme.paddingLarge * 2
-+            height: parent.height
-+            anchors {
-+                left: undefined
-+                horizontalCenter: parent.horizontalCenter
-+            }
-+
-+            onPressed: {
-+                switcherWrapper.onPressed(mouse)
-+            }
-+
-+            onReleased: {
-+                switcherWrapper.onReleased(mouse)
-+            }
-+        }
-+
-         Grid {
-             id: switcherGrid
-             x: margin
 --- /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
 +++ /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
-@@ -191,6 +191,11 @@ EditableGridDelegate {
+@@ -191,6 +191,12 @@ EditableGridDelegate {
          }
      }
  
 +    SwipeItem {
++        id: swipeItem
 +        targetItem: windowPixmap
 +        wrapper: wrapper
 +    }
@@ -251,3 +270,177 @@
      LauncherIcon {
          size: Theme.iconSizeMedium
          anchors.centerIn: parent
+@@ -209,7 +215,7 @@ EditableGridDelegate {
+         anchors.bottom: parent.bottom
+         opacity: windowPixmap.opacity
+ 
+-        sourceComponent: coverActionModel.count > 0 ? coverActionIndicators : undefined
++        sourceComponent: (coverActionModel.count > 0 && !swipeItem.closeMode) ? coverActionIndicators : undefined
+     }
+ 
+     Timer {
+@@ -356,7 +362,7 @@ EditableGridDelegate {
+                 margins: -Theme.paddingSmall        // expand a little around the button
+                 bottomMargin: -Theme.paddingMedium  // Bottom has a bit bigger negative margin.
+             }
+-            enabled: !wrapper.pending && switcherRoot.closeApplicationEnabled && !closeAnimation.running
++            enabled: swipeItem.closeMode || (!wrapper.pending && switcherRoot.closeApplicationEnabled && !closeAnimation.running)
+             onClicked: {
+                 ngfEvent.play()
+                 wrapper.close()
+--- /usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml
++++ /usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml
+@@ -114,7 +114,7 @@ Pannable {
+     }
+ 
+     dragArea {
+-        enabled: !currentItem.maximized && Lipstick.compositor.systemInitComplete
++        enabled: false
+         opacity: 0.4 + 0.6*Math.pow((1.0 - Math.min(homescreen.overshoot, Theme.itemSizeExtraLarge*2)/(Theme.itemSizeExtraLarge*2)), 1.5)
+     }
+ 
+--- /usr/share/lipstick-jolla-home-qt5/notifications/NotificationItem.qml
++++ /usr/share/lipstick-jolla-home-qt5/notifications/NotificationItem.qml
+@@ -61,6 +61,7 @@ Item {
+     width: parent.width
+     height: group.y + group.height
+ 
++
+     NotificationGroupHeader {
+         id: groupHeader
+ 
+@@ -74,7 +75,61 @@ Item {
+         userRemovable: modelData.userRemovable
+         animationDuration: root.animationDuration
+ 
+-        enabled: {
++        drag {
++            maximumX: width
++            minimumX: -width
++            axis: Drag.XAxis
++            target: (!Lipstick.compositor.eventsLayer.housekeeping && userRemovable) ? groupHeader : undefined
++            onActiveChanged: {
++                if (!drag.active) {
++                    if (Math.abs(x) > Theme.itemSizeHuge) {
++                        state = "removing"
++                    } else {
++                        state = ""
++                        state = "default"
++                    }
++                }
++            }
++
++        }
++        states: [
++            State {
++                name: "default"
++            },
++            State {
++                name: "removing"
++            }
++        ]
++
++        transitions: [
++            Transition {
++                to: "default"
++                NumberAnimation {
++                    target: groupHeader
++                    property: "x"
++                    to: 0
++                    duration: 200
++                }
++            },
++            Transition {
++                to: "removing"
++                SequentialAnimation {
++                    NumberAnimation {
++                        target: groupHeader
++                        property: "x"
++                        to: (groupHeader.x > 0) ? width : -width
++                        duration: 200
++                    }
++                    ScriptAction {
++                        script: {
++                            root._notificationGroup.removeRequested()
++                        }
++                    }
++                }
++            }
++        ]
++
++        property bool invokeEnabled: {
+             if (!collapsed) {
+                 if (root._notificationGroup) {
+                     var remoteActions = root._notificationGroup.remoteActions
+@@ -93,6 +148,10 @@ Item {
+         }
+ 
+         onTriggered: {
++            if (!invokeEnabled) {
++                return
++            }
++
+             if (!root._notificationGroup || !root._notificationGroup.members.length) {
+                 return
+             }
+@@ -156,6 +215,60 @@ Item {
+                 delegate: NotificationStandardGroupMember {
+                     id: memberItem
+ 
++                    drag {
++                        maximumX: width
++                        minimumX: -width
++                        axis: Drag.XAxis
++                        target: (!Lipstick.compositor.eventsLayer.housekeeping && userRemovable) ? memberItem : undefined
++                        onActiveChanged: {
++                            if (!drag.active) {
++                                if (Math.abs(x) > Theme.itemSizeHuge) {
++                                    state = "removing"
++                                } else {
++                                    state = ""
++                                    state = "default"
++                                }
++                            }
++                        }
++
++                    }
++                    states: [
++                        State {
++                            name: "default"
++                        },
++                        State {
++                            name: "removing"
++                        }
++                    ]
++
++                    transitions: [
++                        Transition {
++                            to: "default"
++                            NumberAnimation {
++                                target: memberItem
++                                property: "x"
++                                to: 0
++                                duration: 200
++                            }
++                        },
++                        Transition {
++                            to: "removing"
++                            SequentialAnimation {
++                                NumberAnimation {
++                                    target: memberItem
++                                    property: "x"
++                                    to: (memberItem.x > 0) ? width : -width
++                                    duration: 200
++                                }
++                                ScriptAction {
++                                    script: {
++                                        notification.removeRequested()
++                                    }
++                                }
++                            }
++                        }
++                    ]
++
+                     notification: modelData
+                     userRemovable: modelData.userRemovable
+ 
