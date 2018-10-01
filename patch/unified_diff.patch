@@ -1,6 +1,6 @@
 --- /dev/null
 +++ /usr/share/lipstick-jolla-home-qt5/switcher/SwipeItem.qml
-@@ -0,0 +1,244 @@
+@@ -0,0 +1,250 @@
 +import QtQuick 2.0
 +import Sailfish.Silica 1.0
 +import Nemo.Ngf 1.0
@@ -85,7 +85,7 @@
 +
 +            onDragYAtMaximumChanged: {
 +                if (dragYAtMaximum && drag.active)
-+                    ngfCloseEvent.play()
++                    ngfPullEvent.play()
 +            }
 +
 +            onClicked: {
@@ -99,6 +99,12 @@
 +                initX = mouse.x
 +                initY = mouse.y
 +            }
++
++             onCanceled: {
++                 holdTimer.stop()
++                 closeMode = false
++                 pendingEditMode = false
++             }
 +
 +            onReleased:{
 +                holdTimer.stop()
@@ -130,7 +136,7 @@
 +                    target: dragItem
 +                    property: "y"
 +                    to: 0
-+                    duration: 150
++                    duration: 100
 +                }
 +                ScriptAction {
 +                    script: {
@@ -163,6 +169,7 @@
 +                            }
 +                        } else if (dragYAtMaximum) {
 +                            dragYAnim.start()
++                            ngfCloseEvent.play()
 +                            wrapper.close()
 +                            return
 +                        }
@@ -244,7 +251,6 @@
 +}
 +
 +
-+
 --- /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
 +++ /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
 @@ -48,6 +48,7 @@ SilicaFlickable {
@@ -301,36 +307,55 @@
  
 --- /usr/share/lipstick-jolla-home-qt5/notifications/NotificationItem.qml
 +++ /usr/share/lipstick-jolla-home-qt5/notifications/NotificationItem.qml
-@@ -61,6 +61,7 @@ Item {
-     width: parent.width
-     height: group.y + group.height
+@@ -11,6 +11,7 @@ import Sailfish.Lipstick 1.0
+ import org.nemomobile.dbus 2.0
+ import com.jolla.lipstick 0.1
+ import org.nemomobile.lipstick 0.1
++import Nemo.Configuration 1.0
  
-+
-     NotificationGroupHeader {
-         id: groupHeader
+ Item {
+     id: root
+@@ -35,7 +36,6 @@ Item {
+         _timestampCounter += 1
+     }
  
-@@ -74,7 +75,61 @@ Item {
+-
+     property QtObject _notificationGroup: modelData
+     property int _timestampCounter
+     readonly property int _timestampFormat: Desktop.instance && Desktop.instance.showEventsViewSidebar ? Formatter.DurationElapsed : Formatter.DurationElapsedShort
+@@ -74,7 +74,72 @@ Item {
          userRemovable: modelData.userRemovable
          animationDuration: root.animationDuration
  
 -        enabled: {
-+        drag {
-+            maximumX: width
-+            minimumX: -width
-+            axis: Drag.XAxis
-+            target: (!Lipstick.compositor.eventsLayer.housekeeping && userRemovable) ? groupHeader : undefined
-+            onActiveChanged: {
-+                if (!drag.active) {
-+                    if (Math.abs(x) > Theme.itemSizeHuge) {
-+                        state = "removing"
-+                    } else {
-+                        state = ""
-+                        state = "default"
++        highlighted: headerDragArea.pressed
++
++        MouseArea {
++            id: headerDragArea
++            height: parent.height
++            width: root.width - 2*root.dragMargin
++            propagateComposedEvents: true
++            anchors.horizontalCenter: parent.horizontalCenter
++
++            drag {
++                maximumX: groupHeader.width
++                minimumX: -groupHeader.width
++                axis: Drag.XAxis
++                target: (!Lipstick.compositor.eventsLayer.housekeeping && userRemovable) ? groupHeader : undefined
++                onActiveChanged: {
++                    if (!drag.active) {
++                        if (Math.abs(groupHeader.x) > Theme.itemSizeExtraLarge) {
++                            groupHeader.state = "removing"
++                        } else {
++                            groupHeader.state = ""
++                            groupHeader.state = "default"
++                        }
 +                    }
 +                }
-+            }
 +
++            }
 +        }
++
 +        states: [
 +            State {
 +                name: "default"
@@ -372,7 +397,7 @@
              if (!collapsed) {
                  if (root._notificationGroup) {
                      var remoteActions = root._notificationGroup.remoteActions
-@@ -93,6 +148,10 @@ Item {
+@@ -93,6 +158,10 @@ Item {
          }
  
          onTriggered: {
@@ -383,27 +408,42 @@
              if (!root._notificationGroup || !root._notificationGroup.members.length) {
                  return
              }
-@@ -156,6 +215,60 @@ Item {
+@@ -156,6 +225,75 @@ Item {
                  delegate: NotificationStandardGroupMember {
                      id: memberItem
  
-+                    drag {
-+                        maximumX: width
-+                        minimumX: -width
-+                        axis: Drag.XAxis
-+                        target: (!Lipstick.compositor.eventsLayer.housekeeping && userRemovable) ? memberItem : undefined
-+                        onActiveChanged: {
-+                            if (!drag.active) {
-+                                if (Math.abs(x) > Theme.itemSizeHuge) {
-+                                    state = "removing"
-+                                } else {
-+                                    state = ""
-+                                    state = "default"
++                    highlighted: dragArea.pressed
++
++                    MouseArea {
++                        id: dragArea
++                        height: parent.height
++                        width: root.width - 2*root.dragMargin
++                        anchors {
++                            horizontalCenter: parent.horizontalCenter
++                            horizontalCenterOffset: Theme.paddingMedium // memberItem has x offset
++                        }
++                        propagateComposedEvents: true
++
++                        drag {
++                            maximumX: memberItem.width
++                            minimumX: -memberItem.width
++                            axis: Drag.XAxis
++                            target: (!Lipstick.compositor.eventsLayer.housekeeping && userRemovable) ? memberItem : undefined
++                            onActiveChanged: {
++                                if (!drag.active) {
++                                    if (Math.abs(memberItem.x) > Theme.itemSizeExtraLarge) {
++                                        memberItem.state = "removing"
++                                    } else {
++                                        memberItem.state = ""
++                                        memberItem.state = "default"
++                                    }
 +                                }
 +                            }
-+                        }
 +
++                        }
 +                    }
++
++
 +                    states: [
 +                        State {
 +                            name: "default"
@@ -444,3 +484,16 @@
                      notification: modelData
                      userRemovable: modelData.userRemovable
  
+@@ -230,4 +368,11 @@ Item {
+             onClicked: root._invokeAppAction()
+         }
+     }
++
++    ConfigurationValue {
++        id: peekFilterBoundaryWidth
++        key: "/desktop/lipstick-jolla-home/peekfilter/boundaryWidth"
++    }
++    property bool isPortrait: notificationList.height > notificationList.width
++    property int dragMargin: isPortrait ? (peekFilterBoundaryWidth.value + Theme.paddingLarge) : (2 * Theme.paddingLarge)
+ }
+
