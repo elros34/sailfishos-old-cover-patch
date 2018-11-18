@@ -3,12 +3,12 @@ Name:       sailfishos-old-cover-patch
 BuildArch: noarch
 
 Summary:    Old cover patch
-Version:    0.0.5
+Version:    0.0.7
 Release:    1
 Group:      Qt/Qt
 License:    TODO
 Source0:    %{name}-%{version}.tar.bz2
-Requires:   sailfish-version >= 2.2.1
+Requires:   sailfish-version >= 3.0.1
 Requires:   patchmanager
 Requires:   sailfish-content-graphics-default-z2.0
 

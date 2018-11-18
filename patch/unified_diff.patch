@@ -1,6 +1,6 @@
 --- /dev/null
 +++ /usr/share/lipstick-jolla-home-qt5/switcher/SwipeItem.qml
-@@ -0,0 +1,250 @@
+@@ -0,0 +1,274 @@
 +import QtQuick 2.0
 +import Sailfish.Silica 1.0
 +import Nemo.Ngf 1.0
@@ -19,11 +19,6 @@
 +    NonGraphicalFeedback {
 +        id: ngfPullEvent
 +        event: "pulldown_highlight"
-+    }
-+
-+    NonGraphicalFeedback {
-+        id: ngfCloseEvent
-+        event: "close_app"
 +    }
 +
 +    Component.onCompleted: {
@@ -126,6 +121,7 @@
 +                        (Math.abs(dragArea.mouseY - dragArea.initY) < Theme.startDragDistance)) {
 +                        closeMode = true
 +                        dragArea.pendingEditMode = true
++                        ngfPullEvent.play()
 +                    }
 +                }
 +            }
@@ -169,7 +165,6 @@
 +                            }
 +                        } else if (dragYAtMaximum) {
 +                            dragYAnim.start()
-+                            ngfCloseEvent.play()
 +                            wrapper.close()
 +                            return
 +                        }
@@ -217,33 +212,62 @@
 +        delegate: Image { // Icon representing the action that becomes visible when cover is dragged
 +
 +            property double xFactor: (dragArea.width / 2 + width / 2) / dragArea.drag.maximumX
++            property string iconsDir: "z2.0"
 +            property string icon: {
 +                var name = model.iconSource.toString()
-+                return "/usr/share/themes/sailfish-default/meegotouch/z2.0/icons/" + name.split("/").pop() + ".png"
++                if (name === "")
++                    return ""
++
++                return "/usr/share/themes/sailfish-default/meegotouch/" + iconsDir + "/icons/" + name.split("/").pop() + ".png"
 +            }
 +            //zypper in sailfish-content-graphics-default-z2.0
 +
-+            x: (coverActionModel.count === 2)
-+               ? ((index === 0) ? dragItem.x * xFactor - width : dragArea.width + dragItem.x * xFactor)
-+               : ((dragItem.x > 0) ? dragItem.x * xFactor - width : dragArea.width + dragItem.x * xFactor)
++            x: {
++                if (coverActionModel.count === 2) {
++                    if (index === 0) {
++                        return dragItem.x * xFactor - width
++                    } else {
++                        return dragArea.width + dragItem.x * xFactor
++                    }
++                } else if (coverActionModel.count === 1) {
++                    if (dragItem.x > 0) {
++                        return dragItem.x * xFactor - width
++                    } else {
++                        return dragArea.width + dragItem.x * xFactor
++                    }
++                } else { // count = 3, use 1 and 2 delegates
++                    if (index === 1) {
++                        return dragItem.x * xFactor - width
++                    } else if (index === 2){
++                        return dragArea.width + dragItem.x * xFactor
++                    }
++                }
++            }
 +            y: dragArea.height / 3 - height / 2
-+            visible: dragArea.dragXItemMoving
++            visible: dragArea.dragXItemMoving && !(coverActionModel.count === 3 && index == 0)
 +            source: icon
 +            opacity: dragArea.dragXAtMaximum ? 1.0 : 0.5 * dragArea.dragXFactor
 +            smooth: true
 +            asynchronous: true
++            onStatusChanged: {
++                if (status == Image.Error) {
++                    iconsDir = "z1.0"
++                }
++            }
 +
 +            Connections {
 +                target: dragArea
 +                onTriggerAction: {
-+                    if (coverActionModel.count === 2) {
-+                        if (index == i) {
++                    if (coverActionModel.count === 1) {
++                        coverActionModel.trigger(model.id)
++                    } else if (coverActionModel.count === 2){
++                        if (index == i)
++                            coverActionModel.trigger(model.id)
++                    } else if (coverActionModel.count === 3){
++                        if (index == ++i) {
 +                            coverActionModel.trigger(model.id)
 +                        }
-+                    } else {
-+                        coverActionModel.trigger(model.id)
 +                    }
-+
 +                }
 +            }
 +        }
@@ -253,14 +277,14 @@
 +
 --- /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
 +++ /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
-@@ -48,6 +48,7 @@ SilicaFlickable {
+@@ -52,6 +52,7 @@ SilicaFlickable {
  
      contentHeight: Math.ceil(switcherWrapper.y + switcherWrapper.height)
  
 +    pressDelay: 0 // somehow prevents random swipe stealing when interactive is enabled
-     interactive: contentHeight > height || closeApplicationEnabled
+     interactive: contentHeight > height || housekeeping
  
-     onCloseApplicationEnabledChanged: {
+     onHousekeepingChanged: {
 --- /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
 +++ /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
 @@ -191,6 +191,12 @@ EditableGridDelegate {
@@ -285,12 +309,12 @@
      }
  
      Timer {
-@@ -356,7 +362,7 @@ EditableGridDelegate {
+@@ -363,7 +369,7 @@ EditableGridDelegate {
                  margins: -Theme.paddingSmall        // expand a little around the button
                  bottomMargin: -Theme.paddingMedium  // Bottom has a bit bigger negative margin.
              }
--            enabled: !wrapper.pending && switcherRoot.closeApplicationEnabled && !closeAnimation.running
-+            enabled: swipeItem.closeMode || (!wrapper.pending && switcherRoot.closeApplicationEnabled && !closeAnimation.running)
+-            enabled: !wrapper.pending && switcherRoot.housekeeping && !closeAnimation.running
++            enabled: swipeItem.closeMode || (!wrapper.pending && switcherRoot.housekeeping && !closeAnimation.running)
              onClicked: {
                  ngfEvent.play()
                  wrapper.close()
@@ -308,22 +332,14 @@
 --- /usr/share/lipstick-jolla-home-qt5/notifications/NotificationItem.qml
 +++ /usr/share/lipstick-jolla-home-qt5/notifications/NotificationItem.qml
 @@ -11,6 +11,7 @@ import Sailfish.Lipstick 1.0
- import org.nemomobile.dbus 2.0
+ import Nemo.DBus 2.0
  import com.jolla.lipstick 0.1
  import org.nemomobile.lipstick 0.1
 +import Nemo.Configuration 1.0
  
  Item {
      id: root
-@@ -35,7 +36,6 @@ Item {
-         _timestampCounter += 1
-     }
- 
--
-     property QtObject _notificationGroup: modelData
-     property int _timestampCounter
-     readonly property int _timestampFormat: Desktop.instance && Desktop.instance.showEventsViewSidebar ? Formatter.DurationElapsed : Formatter.DurationElapsedShort
-@@ -74,7 +74,72 @@ Item {
+@@ -73,7 +74,72 @@ Item {
          userRemovable: modelData.userRemovable
          animationDuration: root.animationDuration
  
@@ -397,7 +413,7 @@
              if (!collapsed) {
                  if (root._notificationGroup) {
                      var remoteActions = root._notificationGroup.remoteActions
-@@ -93,6 +158,10 @@ Item {
+@@ -92,6 +158,10 @@ Item {
          }
  
          onTriggered: {
@@ -408,7 +424,7 @@
              if (!root._notificationGroup || !root._notificationGroup.members.length) {
                  return
              }
-@@ -156,6 +225,75 @@ Item {
+@@ -155,6 +225,75 @@ Item {
                  delegate: NotificationStandardGroupMember {
                      id: memberItem
  
@@ -484,7 +500,7 @@
                      notification: modelData
                      userRemovable: modelData.userRemovable
  
-@@ -230,4 +368,11 @@ Item {
+@@ -229,4 +368,12 @@ Item {
              onClicked: root._invokeAppAction()
          }
      }
@@ -492,8 +508,8 @@
 +    ConfigurationValue {
 +        id: peekFilterBoundaryWidth
 +        key: "/desktop/lipstick-jolla-home/peekfilter/boundaryWidth"
++        defaultValue: Theme.paddingLarge
 +    }
 +    property bool isPortrait: notificationList.height > notificationList.width
 +    property int dragMargin: isPortrait ? (peekFilterBoundaryWidth.value + Theme.paddingLarge) : (2 * Theme.paddingLarge)
  }
-
