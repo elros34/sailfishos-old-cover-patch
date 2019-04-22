@@ -3,17 +3,17 @@ Name:       sailfishos-old-cover-patch
 BuildArch: noarch
 
 Summary:    Old cover patch
-Version:    0.0.7
+Version:    0.0.8
 Release:    1
 Group:      Qt/Qt
 License:    TODO
 Source0:    %{name}-%{version}.tar.bz2
-Requires:   sailfish-version >= 3.0.1
+Requires:   sailfish-version >= 3.0.2
 Requires:   patchmanager
 Requires:   sailfish-content-graphics-default-z2.0
 
 %description
-Returns gesture based covers from Sailfish 1.1 (inpired by Jolla's code), adds hold and swipe to close window and swipeable notifications in events view (inpired by cornerman's 'No Home Carousel patch')
+Patch returns gesture based covers from Sailfish 1.1 (inpired by Jolla's code) and adds 'hold and swipe' to close window. Also adds swipeable notifications in events view (taken from cornerman's 'No Home Carousel patch')
 
 
 %prep
