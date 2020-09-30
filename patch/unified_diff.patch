@@ -444,13 +444,14 @@
 +                    } else {
 +                        return dragArea.width + dragItem.x * xFactor
 +                    }
-+                } else { // count = 3, use 1 and 2 delegates
++                } else if (coverActionModel.count > 2)  { // count = 3, use 1 and 2 delegates
 +                    if (index === 1) {
 +                        return dragItem.x * xFactor - width
 +                    } else if (index === 2){
 +                        return dragArea.width + dragItem.x * xFactor
 +                    }
 +                }
++                return 0
 +            }
 +            y: dragArea.height / 3 - height / 2
 +            visible: dragArea.dragXItemMoving && !(coverActionModel.count === 3 && index == 0)
@@ -483,7 +484,31 @@
 +    }
 +}
 +
+--- /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
++++ /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
+@@ -192,6 +192,12 @@ EditableGridDelegate {
+         }
+     }
+ 
++    SwipeItem {
++        id: swipeItem
++        targetItem: windowPixmap
++        wrapper: wrapper
++    }
 +
+     LauncherIcon {
+         size: Theme.iconSizeMedium
+         anchors.centerIn: parent
+@@ -210,7 +216,7 @@ EditableGridDelegate {
+         anchors.bottom: parent.bottom
+         opacity: windowPixmap.opacity
+ 
+-        sourceComponent: coverActionModel.count > 0 ? coverActionIndicators : undefined
++        sourceComponent: (coverActionModel.count > 0 && !swipeItem.closeMode) ? coverActionIndicators : undefined
+     }
+ 
+     Timer {
+
 --- /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
 +++ /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
 @@ -18,6 +18,11 @@ import "../main"
@@ -506,27 +531,3 @@
      interactive: contentHeight > height || housekeeping
  
      onHousekeepingChanged: {
---- /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
-+++ /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
-@@ -191,6 +191,12 @@ EditableGridDelegate {
-         }
-     }
- 
-+    SwipeItem {
-+        id: swipeItem
-+        targetItem: windowPixmap
-+        wrapper: wrapper
-+    }
-+
-     LauncherIcon {
-         size: Theme.iconSizeMedium
-         anchors.centerIn: parent
-@@ -209,7 +215,7 @@ EditableGridDelegate {
-         anchors.bottom: parent.bottom
-         opacity: windowPixmap.opacity
- 
--        sourceComponent: coverActionModel.count > 0 ? coverActionIndicators : undefined
-+        sourceComponent: (coverActionModel.count > 0 && !swipeItem.closeMode) ? coverActionIndicators : undefined
-     }
- 
-     Timer {
