@@ -1,1 +1,1 @@
-Patch returns gesture based covers from Sailfish 1.1 (inpired by Jolla's code) and adds 'hold and swipe' to close window. Also adds swipeable notifications in events view (taken from cornerman's 'No Home Carousel patch')
+Patch returns gesture based covers from Sailfish 1.1 (inspired by Jolla's proprietary code) and adds 'hold and swipe' to close window. Also enables always swipeable notifications in events view.

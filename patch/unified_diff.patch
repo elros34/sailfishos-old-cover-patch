@@ -1,6 +1,31 @@
+--- /usr/lib/qt5/qml/Sailfish/Lipstick/NotificationBaseItem.qml
++++ /usr/lib/qt5/qml/Sailfish/Lipstick/NotificationBaseItem.qml
+@@ -17,6 +17,7 @@ Private.SwipeItem {
+     property alias roundedCorners: background.roundedCorners
+     property bool userRemovable: true
+     property bool groupHighlighted
++    property bool showHousekeepingBackground: true
+ 
+     signal removeRequested
+     signal triggered
+@@ -85,12 +86,12 @@ Private.SwipeItem {
+ 
+         z: -1
+         parent: root.contentItem
+-        highlighted: root.draggable && root.highlighted
++        highlighted: root.showHousekeepingBackground && root.draggable && root.highlighted
+         height: parent.height - (extraBackgroundPadding ? 0 : 2*y)
+         x: Theme.paddingMedium
+         y: Math.round(Theme.paddingSmall/2)
+         width: parent.width - 2*x
+-        enabled: root.draggable
++        enabled: root.showHousekeepingBackground && root.draggable
+ 
+         color:  Theme.highlightBackgroundColor
+         opacity: enabled ? Theme.highlightBackgroundOpacity : 0.0
 --- /usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml
 +++ /usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml
-@@ -114,7 +114,7 @@ Pannable {
+@@ -120,7 +120,7 @@ Pannable {
      }
  
      dragArea {
@@ -9,199 +34,99 @@
          opacity: Math.min(1.0, Theme.opacityLow + (1.0 - Theme.opacityLow)*Math.pow((1.0 - Math.min(homescreen.overshoot, Theme.itemSizeExtraLarge*2)/(Theme.itemSizeExtraLarge*2)), 1.5))
      }
  
---- /usr/share/lipstick-jolla-home-qt5/notifications/NotificationItem.qml
-+++ /usr/share/lipstick-jolla-home-qt5/notifications/NotificationItem.qml
-@@ -11,6 +11,7 @@ import Sailfish.Lipstick 1.0
- import Nemo.DBus 2.0
- import com.jolla.lipstick 0.1
- import org.nemomobile.lipstick 0.1
-+import Nemo.Configuration 1.0
+--- /usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandardGroupItem.qml
++++ /usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandardGroupItem.qml
+@@ -46,6 +46,7 @@ NotificationGroupItem {
  
- Item {
-     id: root
-@@ -73,7 +74,72 @@ Item {
-         userRemovable: modelData.userRemovable
-         animationDuration: root.animationDuration
+     implicitHeight: column.height
+     draggable: groupHeader.draggable
++    _showPress: pressed && !housekeeping
  
--        enabled: {
-+        highlighted: headerDragArea.pressed
-+
-+        MouseArea {
-+            id: headerDragArea
-+            height: parent.height
-+            width: root.width - 2*root.dragMargin
-+            propagateComposedEvents: true
-+            anchors.horizontalCenter: parent.horizontalCenter
-+
-+            drag {
-+                maximumX: groupHeader.width
-+                minimumX: -groupHeader.width
-+                axis: Drag.XAxis
-+                target: (!Lipstick.compositor.eventsLayer.housekeeping && userRemovable) ? groupHeader : undefined
-+                onActiveChanged: {
-+                    if (!drag.active) {
-+                        if (Math.abs(groupHeader.x) > Theme.itemSizeExtraLarge) {
-+                            groupHeader.state = "removing"
-+                        } else {
-+                            groupHeader.state = ""
-+                            groupHeader.state = "default"
-+                        }
-+                    }
-+                }
-+
-+            }
-+        }
-+
-+        states: [
-+            State {
-+                name: "default"
-+            },
-+            State {
-+                name: "removing"
-+            }
-+        ]
-+
-+        transitions: [
-+            Transition {
-+                to: "default"
-+                NumberAnimation {
-+                    target: groupHeader
-+                    property: "x"
-+                    to: 0
-+                    duration: 200
-+                }
-+            },
-+            Transition {
-+                to: "removing"
-+                SequentialAnimation {
-+                    NumberAnimation {
-+                        target: groupHeader
-+                        property: "x"
-+                        to: (groupHeader.x > 0) ? width : -width
-+                        duration: 200
-+                    }
-+                    ScriptAction {
-+                        script: {
-+                            root._notificationGroup.removeRequested()
-+                        }
-+                    }
-+                }
-+            }
-+        ]
-+
-+        property bool invokeEnabled: {
-             if (!collapsed) {
-                 if (root._notificationGroup) {
-                     var remoteActions = root._notificationGroup.remoteActions
-@@ -92,6 +158,10 @@ Item {
+     Column {
+         id: column
+@@ -61,6 +62,8 @@ NotificationGroupItem {
+             extraBackgroundPadding: group.hasOnlyOneItem
+             groupHighlighted: root.highlighted
+             enabled: false
++            draggable: userRemovable
++            showHousekeepingBackground: housekeeping
          }
  
-         onTriggered: {
-+            if (!invokeEnabled) {
-+                return
-+            }
-+
-             if (!root._notificationGroup || !root._notificationGroup.members.length) {
-                 return
-             }
-@@ -155,6 +225,75 @@ Item {
-                 delegate: NotificationStandardGroupMember {
-                     id: memberItem
+         Item {
+--- /usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandardGroupMember.qml
++++ /usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandardGroupMember.qml
+@@ -56,12 +56,15 @@ NotificationGroupMember {
+     }
  
-+                    highlighted: dragArea.pressed
-+
-+                    MouseArea {
-+                        id: dragArea
-+                        height: parent.height
-+                        width: root.width - 2*root.dragMargin
-+                        anchors {
-+                            horizontalCenter: parent.horizontalCenter
-+                            horizontalCenterOffset: Theme.paddingMedium // memberItem has x offset
-+                        }
-+                        propagateComposedEvents: true
-+
-+                        drag {
-+                            maximumX: memberItem.width
-+                            minimumX: -memberItem.width
-+                            axis: Drag.XAxis
-+                            target: (!Lipstick.compositor.eventsLayer.housekeeping && userRemovable) ? memberItem : undefined
-+                            onActiveChanged: {
-+                                if (!drag.active) {
-+                                    if (Math.abs(memberItem.x) > Theme.itemSizeExtraLarge) {
-+                                        memberItem.state = "removing"
-+                                    } else {
-+                                        memberItem.state = ""
-+                                        memberItem.state = "default"
-+                                    }
-+                                }
-+                            }
-+
-+                        }
-+                    }
-+
-+
-+                    states: [
-+                        State {
-+                            name: "default"
-+                        },
-+                        State {
-+                            name: "removing"
-+                        }
-+                    ]
-+
-+                    transitions: [
-+                        Transition {
-+                            to: "default"
-+                            NumberAnimation {
-+                                target: memberItem
-+                                property: "x"
-+                                to: 0
-+                                duration: 200
-+                            }
-+                        },
-+                        Transition {
-+                            to: "removing"
-+                            SequentialAnimation {
-+                                NumberAnimation {
-+                                    target: memberItem
-+                                    property: "x"
-+                                    to: (memberItem.x > 0) ? width : -width
-+                                    duration: 200
-+                                }
-+                                ScriptAction {
-+                                    script: {
-+                                        notification.removeRequested()
-+                                    }
-+                                }
-+                            }
-+                        }
-+                    ]
-+
-                     notification: modelData
-                     userRemovable: modelData.userRemovable
+     contentHeight: Math.max(2 * contentColumn.y + contentColumn.height, _iconBottom)
+-    draggable: housekeeping && userRemovable
++    draggable: userRemovable
++    showHousekeepingBackground: housekeeping
  
-@@ -229,4 +368,12 @@ Item {
-             onClicked: root._invokeAppAction()
+     VerticalAutoScroll.keepVisible: expanded && (actionRow.animating || bodyHeightAnimation.running)
+     VerticalAutoScroll.topMargin: Theme.paddingLarge
+     VerticalAutoScroll.bottomMargin: Theme.paddingLarge
+ 
++    _showPress: pressed && !housekeeping
++
+     Column {
+         id: contentColumn
+ 
+--- /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
++++ /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
+@@ -193,6 +193,12 @@ EditableGridDelegate {
          }
      }
-+
-+    ConfigurationValue {
-+        id: peekFilterBoundaryWidth
-+        key: "/desktop/lipstick-jolla-home/peekfilter/boundaryWidth"
-+        defaultValue: Theme.paddingLarge
+ 
++    SwitcherSwipeItem {
++        id: switcherSwipeItem
++        targetItem: windowPixmap
++        wrapper: wrapper
 +    }
-+    property bool isPortrait: notificationList.height > notificationList.width
-+    property int dragMargin: isPortrait ? (peekFilterBoundaryWidth.value + Theme.paddingLarge) : (2 * Theme.paddingLarge)
- }
++
+     LauncherIcon {
+         size: Theme.iconSizeMedium
+         anchors.centerIn: parent
+@@ -211,7 +217,7 @@ EditableGridDelegate {
+         anchors.bottom: parent.bottom
+         opacity: windowPixmap.opacity
+ 
+-        sourceComponent: coverActionModel.count > 0 ? coverActionIndicators : undefined
++        sourceComponent: (coverActionModel.count > 0 && !switcherSwipeItem.closeMode) ? coverActionIndicators : undefined
+     }
+ 
+     Timer {
+--- /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
++++ /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
+@@ -18,6 +18,11 @@ import "../main"
+ SilicaFlickable {
+     id: switcherRoot
+ 
++    property bool swipeCloseMode: false
++    onSwipeCloseModeChanged: {
++        Lipstick.compositor.wallpaper.dimmer.dimmed = swipeCloseMode
++    }
++
+     readonly property int showingWid: Lipstick.compositor.appLayer.pendingWindowId
+     property Item launchingItem
+     property bool skipOnReleased: false
+@@ -52,6 +57,7 @@ SilicaFlickable {
+ 
+     contentHeight: Math.ceil(switcherWrapper.y + switcherWrapper.height)
+ 
++    pressDelay: 0 // somehow prevents random swipe stealing when interactive is enabled
+     interactive: contentHeight > height || housekeeping
+ 
+     onHousekeepingChanged: {
 --- /dev/null
-+++ /usr/share/lipstick-jolla-home-qt5/switcher/SwipeItem.qml
-@@ -0,0 +1,288 @@
++++ /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherSwipeItem.qml
+@@ -0,0 +1,292 @@
 +import QtQuick 2.0
 +import Sailfish.Silica 1.0
 +import Nemo.Ngf 1.0
 +
 +Item {
-+    id: swipeItem
++    id: switcherSwipeItem
 +    width: parent.width
 +    height: parent.height
 +    clip: true
@@ -366,10 +291,10 @@
 +                    if (!drag.active) {
 +                        if (dragXAtMaximum) {
 +                            if (dragArea.dragRight) {
-+                                console.log("trigger action left")
++                                //console.log("trigger action left")
 +                                dragArea.triggerAction(0)
 +                            } else {
-+                                console.log("trigger action right")
++                                //console.log("trigger action right")
 +                                dragArea.triggerAction(1)
 +                            }
 +                        } else if (dragYAtMaximum) {
@@ -386,6 +311,7 @@
 +    }
 +
 +    Rectangle { // background that is shown when the cover is dragged
++        radius: Theme.paddingMedium
 +        opacity: {
 +           if (dragArea.dragXAtMaximum || dragArea.dragYAtMaximum) {
 +               return 0.7
@@ -427,7 +353,10 @@
 +                if (name === "")
 +                    return ""
 +
-+                return "/usr/share/themes/sailfish-default/meegotouch/" + iconsDir + "/icons/" + name.split("/").pop() + ".png"
++                if (name.indexOf("file:///") === 0)
++                    return name
++                else
++                    return "/usr/share/themes/sailfish-default/meegotouch/" + iconsDir + "/icons/" + name.split("/").pop() + ".png"
 +            }
 +            //zypper in sailfish-content-graphics-default-z2.0
 +
@@ -484,50 +413,3 @@
 +    }
 +}
 +
---- /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
-+++ /usr/share/lipstick-jolla-home-qt5/switcher/SwitcherItem.qml
-@@ -192,6 +192,12 @@ EditableGridDelegate {
-         }
-     }
- 
-+    SwipeItem {
-+        id: swipeItem
-+        targetItem: windowPixmap
-+        wrapper: wrapper
-+    }
-+
-     LauncherIcon {
-         size: Theme.iconSizeMedium
-         anchors.centerIn: parent
-@@ -210,7 +216,7 @@ EditableGridDelegate {
-         anchors.bottom: parent.bottom
-         opacity: windowPixmap.opacity
- 
--        sourceComponent: coverActionModel.count > 0 ? coverActionIndicators : undefined
-+        sourceComponent: (coverActionModel.count > 0 && !swipeItem.closeMode) ? coverActionIndicators : undefined
-     }
- 
-     Timer {
-
---- /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
-+++ /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
-@@ -18,6 +18,11 @@ import "../main"
- SilicaFlickable {
-     id: switcherRoot
- 
-+    property bool swipeCloseMode: false
-+    onSwipeCloseModeChanged: {
-+        Lipstick.compositor.homeLayer.dimmer.dimmed = swipeCloseMode
-+    }
-+
-     readonly property int showingWid: Lipstick.compositor.appLayer.pendingWindowId
-     property Item launchingItem
-     property bool skipOnReleased: false
-@@ -52,6 +57,7 @@ SilicaFlickable {
- 
-     contentHeight: Math.ceil(switcherWrapper.y + switcherWrapper.height)
- 
-+    pressDelay: 0 // somehow prevents random swipe stealing when interactive is enabled
-     interactive: contentHeight > height || housekeeping
- 
-     onHousekeepingChanged: {
