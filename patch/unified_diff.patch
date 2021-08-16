@@ -98,19 +98,23 @@
      Timer {
 --- /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
 +++ /usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
-@@ -18,6 +18,11 @@ import "../main"
+@@ -18,6 +18,15 @@ import "../main"
  SilicaFlickable {
      id: switcherRoot
  
 +    property bool swipeCloseMode: false
-+    onSwipeCloseModeChanged: {
-+        Lipstick.compositor.wallpaper.dimmer.dimmed = swipeCloseMode
++
++    Binding {
++        when: swipeCloseMode
++        target: Lipstick.compositor.wallpaper.dimmer
++        property: "dimmed"
++        value: swipeCloseMode
 +    }
 +
      readonly property int showingWid: Lipstick.compositor.appLayer.pendingWindowId
      property Item launchingItem
      property bool skipOnReleased: false
-@@ -52,6 +57,7 @@ SilicaFlickable {
+@@ -52,6 +61,7 @@ SilicaFlickable {
  
      contentHeight: Math.ceil(switcherWrapper.y + switcherWrapper.height)
  
