@@ -3,14 +3,16 @@ Name:       sailfishos-old-cover-patch
 BuildArch: noarch
 
 Summary:    Old cover patch
-Version:    0.1.1
+Version:    0.1.2
 Release:    1
 Group:      Qt/Qt
 License:    TODO
 Source0:    %{name}-%{version}.tar.bz2
 Requires:   sailfish-version >= 4.0.1
 Requires:   patchmanager
-Requires:   sailfish-content-graphics-default-z2.0
+Requires:   sailfish-content-graphics-closed-z2.0
+Requires:   sailfish-content-graphics-default-z2.0-base
+
 
 %description
 Patch returns gesture based covers from Sailfish 1.1 (inspired by Jolla's proprietary code) and adds 'hold and swipe' to close window. Also enables always swipeable notifications in events view.
