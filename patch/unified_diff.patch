@@ -360,7 +360,7 @@
 +                if (name.indexOf("file:///") === 0)
 +                    return name
 +                else
-+                    return "/usr/share/themes/sailfish-default/silica/" + iconsDir + "/icons/" + name.split("/").pop() + ".png"
++                    return "/usr/share/themes/sailfish-default/silica/" + iconsDir + "/icons-monochrome/" + name.split("/").pop() + ".png"
 +            }
 +            //zypper in sailfish-content-graphics-default-z2.0
 +
